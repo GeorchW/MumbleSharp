@@ -1,50 +1,36 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
-using System.Net.Security;
-using System.Security.Cryptography.X509Certificates;
+using System.Linq;
 using MumbleSharp;
 using MumbleSharp.Model;
 
 namespace MumbleClient
 {
     /// <summary>
-    /// A test mumble protocol.
-    /// Currently just prints out text messages in the root channel. Voice data isn't decoded!
-    /// 
-    /// TBH this could be removed entirely and only use the event, but whatever, I'll leave it for demonstration purposes.
+    /// A test mumble protocol. Currently just prints the name of whoever is speaking, as well as printing messages it receives
     /// </summary>
-    public class ConsoleMumbleProtocol : BasicMumbleProtocol
+    public class ConsoleMumbleProtocol
+        : BasicMumbleProtocol
     {
-        public override void TextMessage(MumbleSharp.Packets.TextMessage textMessage)
+        public override void Voice(byte[] pcm, long userId, long sequence)
         {
-            User user;
-            if (!UserDictionary.TryGetValue(textMessage.Actor, out user))   //If we don't know the user for this packet, just ignore it
-                return;
+            User user = Users.FirstOrDefault(u => u.Id == userId);
+            if (user != null)
+                Console.WriteLine(user.Name + " is speaking. Seq" + sequence);
+        }
 
-            if (textMessage.ChannelId == null)
-            {
-                if (textMessage.TreeId == null)
-                {
-                    //personal message: no channel, no tree
-                    for (int i = 0; i < textMessage.Message.Length; i++)
-                        Console.WriteLine(user.Name + " (only for you): " + textMessage.Message[i]);
-                }
-                else
-                {
-                    //recursive message: sent to multiple channels
-                    for (int i = 0; i < textMessage.Message.Length; i++)
-                        Console.WriteLine(user.Name + " (for tree " + textMessage.TreeId[0] + "): " + textMessage.Message[i]);
-                }
-                return;
-            }
-            Channel c;
-            if (!ChannelDictionary.TryGetValue(textMessage.ChannelId[0], out c))    //If we don't know the channel for this packet, just ignore it
-                return;
+        protected override void ChannelMessageReceived(ChannelMessage message)
+        {
+            if (message.Channel.Equals(LocalUser.Channel))
+                Console.WriteLine(string.Format("{0} (channel message): {1}", message.Sender.Name, message.Text));
 
-            for (int i = 0; i < textMessage.Message.Length; i++)
-                Console.WriteLine(user.Name + " (" + c.Name + "): " + textMessage.Message[i]);
+            base.ChannelMessageReceived(message);
+        }
+
+        protected override void PersonalMessageReceived(PersonalMessage message)
+        {
+            Console.WriteLine(string.Format("{0} (personal message): {1}", message.Sender.Name, message.Text));
+
+            base.PersonalMessageReceived(message);
         }
     }
 }
